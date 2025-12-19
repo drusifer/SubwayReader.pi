@@ -28,8 +28,7 @@ export default function App() {
     const loadedSettings = storageService.loadSettings();
     if (loadedSettings) setSettings(loadedSettings);
     
-    // Check for existing session (in a real app we might persist token, 
-    // but here we might rely on Google's automatic sign-in if we stored the token)
+    // Check for existing session
     const storedUser = localStorage.getItem('subway_user');
     if (storedUser) {
         try {
@@ -48,8 +47,6 @@ export default function App() {
          if (profile) {
              setUser(profile);
              localStorage.setItem('subway_user', JSON.stringify(profile));
-             // Optional: Auto-refresh feed when user logs in to personalize
-             // but we'll let them hit sync or refresh manually to avoid jar.
          }
      });
   }, []);
@@ -78,14 +75,12 @@ export default function App() {
       const storedArticles = storageService.loadArticles();
 
       // 2. Fetch new headlines from Gemini
-      // Note: In a real scenario, we might want to deduplicate based on URL
       let newHeadlines: Article[] = [];
       try {
         // Pass settings AND user to fetchHeadlines to use User Interests & Identity
         newHeadlines = await geminiService.fetchHeadlines(settings, user);
       } catch (e) {
         console.warn("Failed to fetch Gemini headlines, using fallback.", e);
-        // Only use fallback if we have ABSOLUTELY nothing, otherwise just show cached
         if (storedArticles.length === 0) {
             newHeadlines = FALLBACK_ARTICLES;
         } else {
@@ -94,9 +89,6 @@ export default function App() {
       }
 
       // 3. Merge Strategies
-      // We want to show the new headlines, but if a headline URL matches a stored article,
-      // we want to use the stored article (to keep the isDownloaded status and content).
-      
       const mergedArticles = newHeadlines.map(headline => {
         const existing = storedArticles.find(s => s.url === headline.url);
         if (existing) {
@@ -105,8 +97,6 @@ export default function App() {
         return headline;
       });
 
-      // Also append stored articles that ARENT in the new headlines 
-      // (so we don't lose access to offline content just because it's not "trending" anymore)
       const storedOnly = storedArticles.filter(
         stored => !newHeadlines.some(h => h.url === stored.url)
       );
@@ -119,7 +109,7 @@ export default function App() {
     } finally {
       setIsLoadingFeed(false);
     }
-  }, [settings, user]); // Re-create loadFeed if settings or user changes
+  }, [settings, user]); 
 
   // Initial Load
   useEffect(() => {
@@ -148,16 +138,15 @@ export default function App() {
       for (let i = 0; i < articlesToSync.length; i++) {
         const article = articlesToSync[i];
         
-        // 1. Fetch Content
+        // 1. Fetch Content (Using Gemini Proxy now, no serverUrl needed)
         try {
             const contentData = await proxyService.fetchArticle(
                 article.url, 
-                settings.serverUrl, 
+                "", // No longer using server URL
                 settings.simulatedMode
             );
             
-            // 2. Generate Summary (if needed - e.g. if the Gemini headline summary was too generic)
-            // For now, we trust the headline summary, unless it's missing.
+            // 2. Generate Summary if missing
             let summary = article.summary;
             if (!summary) {
                try {
@@ -254,7 +243,7 @@ export default function App() {
                {settings.simulatedMode ? (
                    <span data-testid="mode-badge" className="text-xs font-mono bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100 px-2 py-1 rounded">SIMULATED</span>
                ) : (
-                   <span data-testid="mode-badge" className="text-xs font-mono bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 px-2 py-1 rounded">LIVE</span>
+                   <span data-testid="mode-badge" className="text-xs font-mono bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 px-2 py-1 rounded">LIVE (AI)</span>
                )}
             </div>
           </div>

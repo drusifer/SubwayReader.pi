@@ -1,7 +1,6 @@
 import { Article, AppSettings } from './types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  serverUrl: 'http://darius:3000',
   simulatedMode: false, 
   darkMode: false,
   fontSize: 18,

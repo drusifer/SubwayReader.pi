@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { AppSettings, UserProfile } from '../types';
-import { X, Moon, Sun, Type, Server, Trash2, User, LogOut } from 'lucide-react';
+import { X, Moon, Sun, Type, Trash2, User, LogOut } from 'lucide-react';
 import * as storageService from '../services/storageService';
 import * as authService from '../services/authService';
 
@@ -135,32 +135,16 @@ export default function SettingsModal({ settings, user, onUpdate, onLogout, onCl
              </div>
           </div>
 
-          {/* Server Config */}
+          {/* Server Config / Simulation Toggle */}
           <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-700">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Server Configuration</label>
-            
             <div className="flex items-center justify-between mb-2">
-               <span className="text-sm font-medium dark:text-gray-200">Simulated Mode</span>
+               <span className="text-sm font-medium dark:text-gray-200">Simulated Mode (No AI)</span>
                <button 
                 onClick={() => handleChange('simulatedMode', !settings.simulatedMode)}
                 className={`w-10 h-5 rounded-full transition-colors relative ${settings.simulatedMode ? 'bg-indigo-600' : 'bg-gray-300'}`}
                >
                  <div className={`absolute top-1 left-1 bg-white w-3 h-3 rounded-full transition-transform ${settings.simulatedMode ? 'translate-x-5' : ''}`} />
                </button>
-            </div>
-
-            <div className={`space-y-1 transition-opacity ${settings.simulatedMode ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-                <label className="text-xs text-gray-500">Proxy Server URL</label>
-                <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
-                    <Server className="w-4 h-4 text-gray-400" />
-                    <input 
-                        type="text" 
-                        value={settings.serverUrl}
-                        onChange={(e) => handleChange('serverUrl', e.target.value)}
-                        className="bg-transparent w-full text-sm outline-none dark:text-white"
-                        placeholder="http://192.168.1.X:3000"
-                    />
-                </div>
             </div>
           </div>
 
