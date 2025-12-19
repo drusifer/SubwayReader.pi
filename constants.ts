@@ -1,39 +1,41 @@
 import { Article, AppSettings } from './types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  serverUrl: 'http://raspberrypi.local:3000', // Example default
-  simulatedMode: true,
+  serverUrl: 'http://darius:3000',
+  simulatedMode: false, // Default to Live Mode as requested
   darkMode: false,
   fontSize: 18,
   fontFamily: 'serif',
 };
 
+// We use real, stable URLs here so the Proxy has something valid to scrape
+// IDs are prefixed with 'live-' to ensure they don't conflict with previous cached mock data
 export const MOCK_ARTICLES: Article[] = [
   {
-    id: '1',
-    title: 'The Future of Offline-First Web Apps',
-    url: 'https://example.com/future-offline',
+    id: 'live-1',
+    title: 'History of the World Wide Web',
+    url: 'https://en.wikipedia.org/wiki/History_of_the_World_Wide_Web',
+    category: 'History',
+    source: 'Wikipedia',
+    summary: 'A deep dive into how the web was created.',
+    isDownloaded: false,
+  },
+  {
+    id: 'live-2',
+    title: 'Maker\'s Schedule, Manager\'s Schedule',
+    url: 'http://www.paulgraham.com/makersschedule.html',
+    category: 'Essay',
+    source: 'Paul Graham',
+    summary: 'Why programmers hate meetings.',
+    isDownloaded: false,
+  },
+  {
+    id: 'live-3',
+    title: 'The Manifesto for Agile Software Development',
+    url: 'https://agilemanifesto.org/principles.html',
     category: 'Tech',
-    source: 'TechCrunch',
-    summary: 'A look into how PWAs are changing the landscape of mobile browsing in low-connectivity areas.',
-    isDownloaded: false,
-  },
-  {
-    id: '2',
-    title: 'Understanding Node.js Proxies',
-    url: 'https://example.com/node-proxy',
-    category: 'Code',
-    source: 'Hacker News',
-    summary: 'Why you might need a self-hosted proxy server for your personal web scraping projects.',
-    isDownloaded: false,
-  },
-  {
-    id: '3',
-    title: 'Minimalist Living in 2024',
-    url: 'https://example.com/minimalism',
-    category: 'Lifestyle',
-    source: 'The Atlantic',
-    summary: 'How decluttering your digital life can lead to better mental health and focus.',
+    source: 'Agile Alliance',
+    summary: 'The founding principles of modern software development.',
     isDownloaded: false,
   },
 ];
