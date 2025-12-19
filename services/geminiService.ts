@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Article } from "../types";
+import { Article, AppSettings, UserProfile } from "../types";
 
 // Initialize the client exactly as prescribed in the guidelines
 // The API key is injected via vite.config.ts define
@@ -32,24 +32,32 @@ export const generateSummary = async (markdownContent: string): Promise<string> 
   }
 };
 
-export const fetchHeadlines = async (): Promise<Article[]> => {
+export const fetchHeadlines = async (settings?: AppSettings, user?: UserProfile | null): Promise<Article[]> => {
   try {
+    const interests = settings?.interests || "Technology, Science, Long-form Essays, History";
+    
+    // Personalization logic
+    const curatorContext = user 
+        ? `You are ${user.name}'s personal news curator. They have trusted you to find articles matching their specific taste.` 
+        : `You are a personalized news curator.`;
+
     const prompt = `
-      Generate a list of 6 distinct, interesting, and real web articles suitable for reading on a commute.
-      Focus on Technology, Science, Long-form Essays, or interesting Wikipedia History topics.
+      ${curatorContext}
+      The user is interested in: "${interests}".
       
-      Requirements:
-      1. Use REAL, VALID URLs. Do not hallucinate links. Prefer major sites like Wikipedia, Paul Graham, Ars Technica, The Verge, or BBC.
-      2. Ensure the articles are text-heavy (good for reading mode).
-      3. Do not include video sites (YouTube) or paywalled sites (WSJ, FT).
-      4. Create a unique ID for each using a simple hash or random string.
-      5. Provide a short 10-word teaser summary.
+      TASK:
+      1. Use Google Search to find 6 HIGH QUALITY, RECENT, and REAL long-form articles matching the user's interests.
+      2. Prioritize reputable sources (e.g., NYT, BBC, The Atlantic, Paul Graham, Ars Technica) and avoid video platforms.
+      3. Return the results strictly as a JSON array matching the schema below.
+      
+      Ensure every URL is valid and leads directly to an article.
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview', // Using Pro for better reasoning with Search tool
       contents: prompt,
       config: {
+        tools: [{ googleSearch: {} }], // Enable Search Grounding
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.ARRAY,
@@ -68,13 +76,14 @@ export const fetchHeadlines = async (): Promise<Article[]> => {
         },
       },
     });
-
+    
     if (response.text) {
       const data = JSON.parse(response.text);
-      // Ensure mapped correctly and add required frontend flags
       return data.map((item: any) => ({
         ...item,
-        isDownloaded: false, // Default to false for new headlines
+        // Ensure ID is unique enough (Gemini often generates generic IDs like '1', '2')
+        id: `gen_${Math.random().toString(36).substr(2, 9)}`, 
+        isDownloaded: false,
       }));
     }
     

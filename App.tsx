@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, RefreshCw, BookOpen, WifiOff, Wifi, AlertCircle, RotateCcw, Loader2 } from 'lucide-react';
-import { Article, AppView, SyncStatus, AppSettings } from './types';
+import { Article, AppView, SyncStatus, AppSettings, UserProfile } from './types';
 import { FALLBACK_ARTICLES, DEFAULT_SETTINGS } from './constants';
 import * as storageService from './services/storageService';
 import * as proxyService from './services/proxyService';
 import * as geminiService from './services/geminiService';
+import * as authService from './services/authService';
 import ArticleCard from './components/ArticleCard';
 import ReaderView from './components/ReaderView';
 import SettingsModal from './components/SettingsModal';
@@ -15,6 +16,7 @@ export default function App() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [currentArticleId, setCurrentArticleId] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
@@ -25,7 +27,37 @@ export default function App() {
   useEffect(() => {
     const loadedSettings = storageService.loadSettings();
     if (loadedSettings) setSettings(loadedSettings);
+    
+    // Check for existing session (in a real app we might persist token, 
+    // but here we might rely on Google's automatic sign-in if we stored the token)
+    const storedUser = localStorage.getItem('subway_user');
+    if (storedUser) {
+        try {
+            setUser(JSON.parse(storedUser));
+        } catch(e) { console.error(e); }
+    }
   }, []);
+
+  // Initialize Google Auth
+  useEffect(() => {
+     // Use environment variable for Client ID
+     const clientId = process.env.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID_PLACEHOLDER';
+     
+     authService.initializeGoogleAuth(clientId, (response) => {
+         const profile = authService.decodeJwt(response.credential);
+         if (profile) {
+             setUser(profile);
+             localStorage.setItem('subway_user', JSON.stringify(profile));
+             // Optional: Auto-refresh feed when user logs in to personalize
+             // but we'll let them hit sync or refresh manually to avoid jar.
+         }
+     });
+  }, []);
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('subway_user');
+  };
 
   // Save settings effect
   useEffect(() => {
@@ -49,7 +81,8 @@ export default function App() {
       // Note: In a real scenario, we might want to deduplicate based on URL
       let newHeadlines: Article[] = [];
       try {
-        newHeadlines = await geminiService.fetchHeadlines();
+        // Pass settings AND user to fetchHeadlines to use User Interests & Identity
+        newHeadlines = await geminiService.fetchHeadlines(settings, user);
       } catch (e) {
         console.warn("Failed to fetch Gemini headlines, using fallback.", e);
         // Only use fallback if we have ABSOLUTELY nothing, otherwise just show cached
@@ -67,7 +100,7 @@ export default function App() {
       const mergedArticles = newHeadlines.map(headline => {
         const existing = storedArticles.find(s => s.url === headline.url);
         if (existing) {
-            return { ...headline, ...existing, isDownloaded: true };
+            return { ...headline, ...existing, isDownloaded: true, syncError: existing.syncError };
         }
         return headline;
       });
@@ -86,12 +119,13 @@ export default function App() {
     } finally {
       setIsLoadingFeed(false);
     }
-  }, []);
+  }, [settings, user]); // Re-create loadFeed if settings or user changes
 
   // Initial Load
   useEffect(() => {
     loadFeed();
-  }, [loadFeed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); 
 
   // Sync Logic
   const handleSync = useCallback(async () => {
@@ -134,40 +168,42 @@ export default function App() {
                }
             }
 
-            // 3. Update Article Object
+            // 3. Update Article Object (Success)
             const updatedArticle: Article = {
                 ...article,
                 content: contentData.content,
                 title: contentData.title || article.title, 
                 summary: summary,
                 isDownloaded: true,
+                syncError: false, // Reset error on success
                 cachedAt: new Date().toISOString()
             };
 
-            // Update state incrementally
-            // ID match might be unreliable if Gemini generates new IDs every time.
-            // Using URL as the stable identifier for update is safer here.
             const index = newArticles.findIndex(a => a.url === updatedArticle.url);
-            if (index !== -1) {
-                newArticles[index] = updatedArticle;
-            } else {
-                // If ID changed but URL matched, ensuring we update the right slot
-                const urlIndex = newArticles.findIndex(a => a.url === article.url);
-                if (urlIndex !== -1) newArticles[urlIndex] = updatedArticle;
-            }
+            if (index !== -1) newArticles[index] = updatedArticle;
             
             setArticles([...newArticles]);
             storageService.saveArticles(newArticles);
 
         } catch (err) {
             console.error(`Failed to sync article ${article.title}:`, err);
-            // Continue to next article even if one fails
+            
+            // 3b. Update Article Object (Failure)
+            const failedArticle: Article = {
+                ...article,
+                isDownloaded: false,
+                syncError: true 
+            };
+            
+            const index = newArticles.findIndex(a => a.url === failedArticle.url);
+            if (index !== -1) newArticles[index] = failedArticle;
+            setArticles([...newArticles]);
         }
 
         setSyncProgress(prev => ({ ...prev, current: i + 1 }));
       }
     } catch (e) {
-        setErrorMsg("Sync batch failed unexpectedly.");
+        setErrorMsg("Sync batch process encountered an issue.");
         console.error(e);
     } finally {
         setSyncStatus('idle');
@@ -236,6 +272,12 @@ export default function App() {
                     {errorMsg}
                 </div>
             )}
+            
+            {user && !isLoadingFeed && articles.length > 0 && (
+                <div className="text-sm text-gray-500 dark:text-gray-400 px-1">
+                    News curated for <strong>{user.name}</strong>
+                </div>
+            )}
 
             {isLoadingFeed && articles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-4 text-gray-400">
@@ -278,10 +320,14 @@ export default function App() {
                 <button 
                     onClick={toggleSettings}
                     data-testid="settings-button"
-                    className="p-3 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300"
+                    className="p-3 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300 relative"
                     aria-label="Settings"
                 >
-                    <Settings className="w-6 h-6" />
+                    {user ? (
+                        <img src={user.picture} alt="Profile" className="w-6 h-6 rounded-full border border-gray-300" />
+                    ) : (
+                        <Settings className="w-6 h-6" />
+                    )}
                 </button>
 
                 <button 
@@ -316,7 +362,9 @@ export default function App() {
       {showSettings && (
           <SettingsModal 
             settings={settings} 
+            user={user}
             onUpdate={setSettings} 
+            onLogout={handleLogout}
             onClose={() => setShowSettings(false)} 
           />
       )}

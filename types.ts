@@ -7,6 +7,7 @@ export interface Article {
   summary?: string;
   content?: string; // Markdown content
   isDownloaded: boolean;
+  syncError?: boolean; // If the last sync attempt failed (e.g. 404)
   cachedAt?: string;
 }
 
@@ -20,6 +21,7 @@ export interface AppSettings {
   darkMode: boolean;
   fontSize: number; // in pixels (base) or rem scale
   fontFamily: FontFamily;
+  interests: string; // User defined topics for personalization
 }
 
 export interface ProxyResponse {
@@ -27,4 +29,10 @@ export interface ProxyResponse {
     content: string;
     excerpt?: string;
     siteName?: string;
+}
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  picture: string;
 }

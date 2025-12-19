@@ -2,10 +2,11 @@ import { Article, AppSettings } from './types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   serverUrl: 'http://darius:3000',
-  simulatedMode: false, // Default to Live Mode as requested
+  simulatedMode: false, 
   darkMode: false,
   fontSize: 18,
   fontFamily: 'serif',
+  interests: 'Technology, Science, Long-form Essays, History',
 };
 
 // Fallback data in case Gemini API fails or quota is exceeded

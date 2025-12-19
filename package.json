@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "start": "npm run build && node server.js",
+    "server": "node server.js",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "jest",
     "e2e": "playwright test"

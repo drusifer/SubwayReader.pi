@@ -27,6 +27,15 @@
         *   Use Google Gemini API to generate summaries during the sync process.
         *   Display summary below the headline in the feed.
 
+*   **Story 1.4: Google Sign-In**
+    *   **As a** user,
+    *   **I want to** sign in with my Google Account,
+    *   **So that** the news curation feels more personalized and I can see my profile.
+    *   *Acceptance Criteria:*
+        *   "Sign in with Google" button in Settings.
+        *   Display user name and avatar upon login.
+        *   Use user identity to enhance Gemini prompts.
+
 ---
 
 ## Epic 2: Synchronization (The "Subway" Workflow)
@@ -51,6 +60,15 @@
     *   **As a** system,
     *   **I want to** save the full Markdown content and metadata to `localStorage`,
     *   **So that** the data persists even if the browser tab is closed or the device goes offline.
+
+*   **Story 2.4: Resilient Sync & Error Handling**
+    *   **As a** user syncing a feed,
+    *   **I want to** see a visual error indicator if a specific article fails to download (e.g., broken link/404),
+    *   **So that** I know why content is missing, but the rest of my feed continues to sync successfully.
+    *   *Acceptance Criteria:*
+        *   If the Proxy returns an error (404/500), mark the specific article with an Error icon.
+        *   Do not abort the entire batch; continue to the next article.
+        *   Allow the user to distinguish between "Available", "Downloaded", and "Failed".
 
 ---
 

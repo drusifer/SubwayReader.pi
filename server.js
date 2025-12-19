@@ -39,7 +39,7 @@ app.get('/api/parse', async (req, res) => {
   }
 
   try {
-    console.log(`[Proxy] Fetching: ${targetUrl}`);
+    console.log(`[Proxy] 🌐 Fetching: ${targetUrl}`);
     
     // 1. Fetch the raw HTML
     const response = await fetch(targetUrl, {
@@ -89,6 +89,8 @@ app.get('/api/parse', async (req, res) => {
 
     const markdown = turndownService.turndown(article.content);
 
+    console.log(`[Proxy] ✅ Successfully parsed: "${article.title}"`);
+
     // 5. Return JSON response
     res.json({
       title: article.title,
@@ -98,7 +100,7 @@ app.get('/api/parse', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Proxy] Error parsing article:', error);
+    console.error('[Proxy] ❌ Error parsing article:', error);
     res.status(500).json({ error: error.message });
   }
 });

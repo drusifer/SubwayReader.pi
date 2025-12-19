@@ -63,5 +63,6 @@ export default defineConfig({
   define: {
     // This allows the frontend to access process.env.API_KEY
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
+    'process.env.GOOGLE_CLIENT_ID': JSON.stringify(process.env.GOOGLE_CLIENT_ID),
   }
 });
