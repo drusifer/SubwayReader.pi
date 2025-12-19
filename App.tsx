@@ -77,14 +77,14 @@ export default function App() {
       // 2. Fetch new headlines from Gemini
       let newHeadlines: Article[] = [];
       try {
-        // Pass settings AND user to fetchHeadlines to use User Interests & Identity
+        // Pass settings and user to fetchHeadlines
         newHeadlines = await geminiService.fetchHeadlines(settings, user);
       } catch (e) {
         console.warn("Failed to fetch Gemini headlines, using fallback.", e);
         if (storedArticles.length === 0) {
             newHeadlines = FALLBACK_ARTICLES;
         } else {
-            setErrorMsg("Could not fetch new headlines. Showing cached articles.");
+            setErrorMsg("Could not fetch new headlines. Check your internet or API Key.");
         }
       }
 
@@ -138,11 +138,10 @@ export default function App() {
       for (let i = 0; i < articlesToSync.length; i++) {
         const article = articlesToSync[i];
         
-        // 1. Fetch Content (Using Gemini Proxy now, no serverUrl needed)
+        // 1. Fetch Content (Using Gemini directly)
         try {
             const contentData = await proxyService.fetchArticle(
                 article.url, 
-                "", // No longer using server URL
                 settings.simulatedMode
             );
             

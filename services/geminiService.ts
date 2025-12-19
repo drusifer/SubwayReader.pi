@@ -1,12 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Article, AppSettings, UserProfile } from "../types";
 
-// Initialize the client exactly as prescribed in the guidelines
-// The API key is injected via vite.config.ts define
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to instantiate client lazily
+const getAiClient = () => {
+  // Use process.env.API_KEY directly as per guidelines
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+}
 
 export const generateSummary = async (markdownContent: string): Promise<string> => {
   try {
+    const ai = getAiClient();
+    
     // Truncate content to avoid token limits if the article is huge
     const truncatedContent = markdownContent.slice(0, 10000); 
 
@@ -28,12 +32,13 @@ export const generateSummary = async (markdownContent: string): Promise<string> 
 
   } catch (error) {
     console.error("Gemini API Error (Summary):", error);
-    return "Summary generation failed.";
+    return "Summary unavailable.";
   }
 };
 
 export const fetchHeadlines = async (settings?: AppSettings, user?: UserProfile | null): Promise<Article[]> => {
   try {
+    const ai = getAiClient();
     const interests = settings?.interests || "Technology, Science, Long-form Essays, History";
     
     // Personalization logic

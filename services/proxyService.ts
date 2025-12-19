@@ -2,11 +2,14 @@ import { GoogleGenAI } from "@google/genai";
 import { ProxyResponse } from '../types';
 import { MOCK_MARKDOWN_CONTENT } from '../constants';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper to instantiate client lazily
+const getAiClient = () => {
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+}
 
+// Renamed internally to reflect it's now an AI fetcher, though filename remains for consistency
 export const fetchArticle = async (
   url: string, 
-  _serverUrl: string, // Deprecated, kept for signature compatibility but unused
   isSimulated: boolean
 ): Promise<ProxyResponse> => {
   
@@ -21,24 +24,23 @@ export const fetchArticle = async (
     };
   }
 
-  // Live Mode: Use Gemini 3 Pro with Search Grounding to "read" the web
-  // This replaces the need for a custom CORS proxy server.
+  // Live Mode: Use Gemini with Search Grounding to read the web
   try {
+    const ai = getAiClient();
     const prompt = `
-      You are a specialized content extractor.
+      You are a specialized reading assistant.
       
       TASK:
-      1. Access the following URL using Google Search: ${url}
-      2. Extract the FULL article content.
-      3. Format the output as clean, readable Markdown.
-      4. Do NOT include ads, navigation menus, or sidebars.
-      5. Start the markdown with the article Title as an # H1.
-      
-      If you cannot access the specific content, provide a detailed summary of what is publicly known about this specific link.
+      1. Find the full content of the article located at this URL: ${url}
+      2. Reconstruct the article as clean, readable Markdown.
+      3. Start with the Title as an # H1.
+      4. Remove all ads, navigation, and sidebars.
+      5. If the exact full text is behind a hard paywall or inaccessible, provide a comprehensive summary of the topic based on available search results.
     `;
 
+    // Using gemini-3-flash-preview as recommended for standard search grounding tasks
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Pro model required for complex Search tasks
+      model: 'gemini-3-flash-preview', 
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -48,16 +50,16 @@ export const fetchArticle = async (
     const text = response.text;
     
     if (!text) {
-      throw new Error("Gemini could not retrieve content for this URL.");
+      throw new Error("Gemini returned an empty response.");
     }
 
-    // Basic parsing of the Markdown to extract a title if possible, 
-    // otherwise fallback to a generic one.
+    // Basic parsing of the Markdown
     const titleMatch = text.match(/^#\s+(.+)$/m);
     const title = titleMatch ? titleMatch[1] : "Article Content";
     
-    // Create a rough excerpt from the first paragraph
-    const excerpt = text.split('\n\n').find(p => p.length > 50 && !p.startsWith('#'))?.slice(0, 150) + "..." || "";
+    const excerpt = text.split('\n\n')
+      .find(p => p.length > 50 && !p.trim().startsWith('#') && !p.trim().startsWith('*'))
+      ?.slice(0, 150) + "..." || "Read the full article below.";
 
     return {
       title: title,

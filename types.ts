@@ -16,7 +16,6 @@ export type SyncStatus = 'idle' | 'syncing' | 'error';
 export type FontFamily = 'serif' | 'sans';
 
 export interface AppSettings {
-  // serverUrl removed - using Gemini API directly
   simulatedMode: boolean;
   darkMode: boolean;
   fontSize: number; // in pixels (base) or rem scale

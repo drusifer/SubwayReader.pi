@@ -72,6 +72,8 @@ export default function SettingsModal({ settings, user, onUpdate, onLogout, onCl
                 </div>
             )}
           </div>
+          
+          {/* API Key Configuration REMOVED - Key is managed via ENV variables only */}
 
           {/* Personalization */}
           <div className="space-y-3">
