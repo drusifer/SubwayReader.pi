@@ -3,6 +3,7 @@ const cors = require('cors');
 const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const TurndownService = require('turndown');
+const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
 
@@ -27,9 +28,29 @@ if (!fs.existsSync(DIST_PATH)) {
 
 app.use(express.static(DIST_PATH));
 
+// Shared browser instance to avoid launch overhead, but we manage pages individually
+let browserInstance = null;
+
+async function getBrowser() {
+    if (!browserInstance) {
+        browserInstance = await puppeteer.launch({
+            headless: 'new',
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // Important for docker/pi environments
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu'
+            ]
+        });
+    }
+    return browserInstance;
+}
+
 /**
  * API Endpoint: /api/parse
- * Fetches a URL, cleans the HTML using Readability, and converts it to Markdown.
+ * Fetches a URL using Puppeteer (UX simulation) to bypass soft paywalls/bot-detection,
+ * then cleans with Readability and converts to Markdown.
  */
 app.get('/api/parse', async (req, res) => {
   const targetUrl = req.query.url;
@@ -38,33 +59,54 @@ app.get('/api/parse', async (req, res) => {
     return res.status(400).json({ error: 'Missing url parameter' });
   }
 
+  let page = null;
+  
   try {
-    console.log(`[Proxy] 🌐 Fetching: ${targetUrl}`);
+    console.log(`[Proxy] 🌐 Fetching (UX Mode): ${targetUrl}`);
     
-    // 1. Fetch the raw HTML
-    const response = await fetch(targetUrl, {
-      headers: {
-        // Use a real browser User-Agent to avoid being blocked by sites like Wikipedia
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
+    const browser = await getBrowser();
+    page = await browser.newPage();
+    
+    // Set a realistic User Agent
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+
+    // Optimize: block images, styles, fonts to speed up
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+        if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+            req.abort();
+        } else {
+            req.continue();
+        }
+    });
+
+    // Navigate with timeout
+    await page.goto(targetUrl, { 
+        waitUntil: 'domcontentloaded',
+        timeout: 20000 // 20s timeout
     });
     
-    if (!response.ok) {
-        throw new Error(`Failed to fetch ${targetUrl}: ${response.status} ${response.statusText}`);
-    }
+    // Optional: Wait a moment for dynamic content hydration (SPA)
+    // await new Promise(r => setTimeout(r, 1000));
+
+    // Extract the full HTML after JS execution
+    const html = await page.content();
     
-    const html = await response.text();
+    await page.close();
+    page = null; // Mark as closed
 
     // 2. Parse HTML with JSDOM
     const doc = new JSDOM(html, { url: targetUrl });
     const document = doc.window.document;
 
-    // 2b. Aggressive Pre-cleaning (User Story 4.1 Refinement)
-    // Remove common clutter before Readability even sees it
+    // 2b. Aggressive Pre-cleaning
+    // Remove common clutter before Readability
     const clutterSelectors = [
       'nav', 'footer', 'header', 'aside', 
       '.ad', '.advertisement', '.social-share', '.cookie-consent', 
-      '#sidebar', '#comments', '.related-posts'
+      '#sidebar', '#comments', '.related-posts',
+      '[aria-modal="true"]', // Modals often block content
+      '.modal', '.popup'
     ];
     clutterSelectors.forEach(selector => {
       document.querySelectorAll(selector).forEach(el => el.remove());
@@ -84,8 +126,7 @@ app.get('/api/parse', async (req, res) => {
       codeBlockStyle: 'fenced'
     });
     
-    // Safety net: Remove scripts/styles if they survived Readability
-    turndownService.remove(['script', 'style', 'iframe', 'object', 'video']);
+    turndownService.remove(['script', 'style', 'iframe', 'object', 'video', 'button', 'form']);
 
     const markdown = turndownService.turndown(article.content);
 
@@ -101,6 +142,7 @@ app.get('/api/parse', async (req, res) => {
 
   } catch (error) {
     console.error('[Proxy] ❌ Error parsing article:', error);
+    if (page) await page.close().catch(() => {});
     res.status(500).json({ error: error.message });
   }
 });
@@ -122,7 +164,7 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`=============================================`);
-  console.log(` Subway Reader Server running`);
+  console.log(` Subway Reader Server running (w/ Puppeteer)`);
   console.log(` Local:   http://localhost:${PORT}`);
   console.log(` Network: http://<raspberry-pi-ip>:${PORT}`);
   console.log(`=============================================`);
