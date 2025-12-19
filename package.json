@@ -9,6 +9,7 @@
     "server": "node server.js",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "jest",
+    "pree2e": "playwright install",
     "e2e": "playwright test"
   },
   "dependencies": {

@@ -100,5 +100,7 @@ pm2 startup
 4.  **Important**: In the Web App, open **Settings**, disable **Simulated Mode**, and set the **Server URL** to `http://<YOUR_PI_IP>:3000`.
 
 ## Troubleshooting
+*   **Puppeteer Error (Syntax error: "(" unexpected)**: This means Puppeteer is trying to run an incompatible Chrome binary (e.g., x64 on an ARM Raspberry Pi). 
+    *   **Fix**: Install Chromium system-wide: `sudo apt install chromium-browser` (or `chromium`). The server will automatically detect and use it.
 *   **CORS Errors**: If connecting from a different device, ensure the `server.js` is running and the IP address in App Settings matches the Pi's IP.
 *   **Gemini Errors**: If summaries fail, check that the `API_KEY` was correctly exported before starting the server.

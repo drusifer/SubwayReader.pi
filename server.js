@@ -31,10 +31,38 @@ app.use(express.static(DIST_PATH));
 // Shared browser instance to avoid launch overhead, but we manage pages individually
 let browserInstance = null;
 
+// Helper to find system chrome/chromium (common fix for Raspberry Pi / ARM / Linux)
+// The bundled Puppeteer binary often fails on ARM devices due to architecture mismatch.
+const findChromePath = () => {
+    const paths = [
+        '/usr/bin/chromium-browser',       // Raspbian / Ubuntu
+        '/usr/bin/chromium',               // Debian / Alpine
+        '/usr/bin/google-chrome-stable',   // Standard Linux
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' // MacOS
+    ];
+    
+    for (const p of paths) {
+        if (fs.existsSync(p)) {
+            return p;
+        }
+    }
+    return null;
+};
+
 async function getBrowser() {
     if (!browserInstance) {
+        const systemBrowserPath = findChromePath();
+        
+        if (systemBrowserPath) {
+             console.log(`[Proxy] 🖥️  Using system browser at: ${systemBrowserPath}`);
+        } else {
+             console.log(`[Proxy] 📦 Using bundled Puppeteer browser`);
+        }
+
         browserInstance = await puppeteer.launch({
-            headless: 'new',
+            // Use 'new' for v22+, or true. 'new' is generally recommended for recent versions.
+            headless: 'new', 
+            executablePath: systemBrowserPath || undefined,
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox',
@@ -86,9 +114,6 @@ app.get('/api/parse', async (req, res) => {
         timeout: 20000 // 20s timeout
     });
     
-    // Optional: Wait a moment for dynamic content hydration (SPA)
-    // await new Promise(r => setTimeout(r, 1000));
-
     // Extract the full HTML after JS execution
     const html = await page.content();
     
