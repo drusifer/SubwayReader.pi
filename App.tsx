@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, RefreshCw, BookOpen, WifiOff, Wifi, AlertCircle } from 'lucide-react';
+import { Settings, RefreshCw, BookOpen, WifiOff, Wifi, AlertCircle, RotateCcw, Loader2 } from 'lucide-react';
 import { Article, AppView, SyncStatus, AppSettings } from './types';
-import { MOCK_ARTICLES, DEFAULT_SETTINGS } from './constants';
+import { FALLBACK_ARTICLES, DEFAULT_SETTINGS } from './constants';
 import * as storageService from './services/storageService';
 import * as proxyService from './services/proxyService';
 import * as geminiService from './services/geminiService';
@@ -19,29 +19,15 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(false);
 
-  // Initialize
+  // Load Settings on Mount
   useEffect(() => {
-    // Load settings
     const loadedSettings = storageService.loadSettings();
     if (loadedSettings) setSettings(loadedSettings);
-
-    // Load articles (merge mock headers with stored full content)
-    const storedArticles = storageService.loadArticles();
-    
-    // In a real app, we might fetch the "Feed" from an RSS aggregator here.
-    // For this prototype, we use the MOCK_ARTICLES as the "Live Feed" source of truth for headlines,
-    // and merge with local storage to see what we have downloaded.
-    
-    const mergedArticles = MOCK_ARTICLES.map(mock => {
-      const stored = storedArticles.find(a => a.id === mock.id);
-      return stored ? { ...mock, ...stored } : mock;
-    });
-
-    setArticles(mergedArticles);
   }, []);
 
-  // Save settings when changed
+  // Save settings effect
   useEffect(() => {
     storageService.saveSettings(settings);
     if (settings.darkMode) {
@@ -50,6 +36,62 @@ export default function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [settings]);
+
+  // Load Feed Function
+  const loadFeed = useCallback(async () => {
+    setIsLoadingFeed(true);
+    setErrorMsg(null);
+    try {
+      // 1. Load stored articles (offline cache)
+      const storedArticles = storageService.loadArticles();
+
+      // 2. Fetch new headlines from Gemini
+      // Note: In a real scenario, we might want to deduplicate based on URL
+      let newHeadlines: Article[] = [];
+      try {
+        newHeadlines = await geminiService.fetchHeadlines();
+      } catch (e) {
+        console.warn("Failed to fetch Gemini headlines, using fallback.", e);
+        // Only use fallback if we have ABSOLUTELY nothing, otherwise just show cached
+        if (storedArticles.length === 0) {
+            newHeadlines = FALLBACK_ARTICLES;
+        } else {
+            setErrorMsg("Could not fetch new headlines. Showing cached articles.");
+        }
+      }
+
+      // 3. Merge Strategies
+      // We want to show the new headlines, but if a headline URL matches a stored article,
+      // we want to use the stored article (to keep the isDownloaded status and content).
+      
+      const mergedArticles = newHeadlines.map(headline => {
+        const existing = storedArticles.find(s => s.url === headline.url);
+        if (existing) {
+            return { ...headline, ...existing, isDownloaded: true };
+        }
+        return headline;
+      });
+
+      // Also append stored articles that ARENT in the new headlines 
+      // (so we don't lose access to offline content just because it's not "trending" anymore)
+      const storedOnly = storedArticles.filter(
+        stored => !newHeadlines.some(h => h.url === stored.url)
+      );
+
+      setArticles([...mergedArticles, ...storedOnly]);
+
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Failed to load feed.");
+    } finally {
+      setIsLoadingFeed(false);
+    }
+  }, []);
+
+  // Initial Load
+  useEffect(() => {
+    loadFeed();
+  }, [loadFeed]);
 
   // Sync Logic
   const handleSync = useCallback(async () => {
@@ -80,14 +122,15 @@ export default function App() {
                 settings.simulatedMode
             );
             
-            // 2. Generate Summary (if needed)
+            // 2. Generate Summary (if needed - e.g. if the Gemini headline summary was too generic)
+            // For now, we trust the headline summary, unless it's missing.
             let summary = article.summary;
-            if (!summary || summary.startsWith("AI generated")) {
+            if (!summary) {
                try {
                    summary = await geminiService.generateSummary(contentData.content);
                } catch (geminiError) {
                    console.error("Gemini summary failed:", geminiError);
-                   summary = "Summary unavailable (Offline or Error)";
+                   summary = "Summary unavailable.";
                }
             }
 
@@ -95,22 +138,29 @@ export default function App() {
             const updatedArticle: Article = {
                 ...article,
                 content: contentData.content,
-                title: contentData.title || article.title, // Use parsed title if better
+                title: contentData.title || article.title, 
                 summary: summary,
                 isDownloaded: true,
                 cachedAt: new Date().toISOString()
             };
 
             // Update state incrementally
-            const index = newArticles.findIndex(a => a.id === updatedArticle.id);
+            // ID match might be unreliable if Gemini generates new IDs every time.
+            // Using URL as the stable identifier for update is safer here.
+            const index = newArticles.findIndex(a => a.url === updatedArticle.url);
             if (index !== -1) {
                 newArticles[index] = updatedArticle;
-                setArticles([...newArticles]);
-                storageService.saveArticles(newArticles);
+            } else {
+                // If ID changed but URL matched, ensuring we update the right slot
+                const urlIndex = newArticles.findIndex(a => a.url === article.url);
+                if (urlIndex !== -1) newArticles[urlIndex] = updatedArticle;
             }
+            
+            setArticles([...newArticles]);
+            storageService.saveArticles(newArticles);
 
         } catch (err) {
-            console.error(`Failed to sync article ${article.id}:`, err);
+            console.error(`Failed to sync article ${article.title}:`, err);
             // Continue to next article even if one fails
         }
 
@@ -155,6 +205,16 @@ export default function App() {
               Subway Reader
             </h1>
             <div className="flex items-center gap-2">
+               {/* Manual Refresh Button */}
+               <button 
+                 onClick={loadFeed} 
+                 disabled={isLoadingFeed}
+                 className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                 title="Refresh Headlines"
+               >
+                 <RotateCcw className={`w-4 h-4 ${isLoadingFeed ? 'animate-spin' : ''}`} />
+               </button>
+
                {settings.simulatedMode ? (
                    <span data-testid="mode-badge" className="text-xs font-mono bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100 px-2 py-1 rounded">SIMULATED</span>
                ) : (
@@ -177,13 +237,27 @@ export default function App() {
                 </div>
             )}
 
-            {articles.map(article => (
-              <ArticleCard 
-                key={article.id} 
-                article={article} 
-                onClick={() => openArticle(article.id)} 
-              />
-            ))}
+            {isLoadingFeed && articles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-4 text-gray-400">
+                    <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                    <p>Curating headlines with Gemini...</p>
+                </div>
+            ) : (
+                articles.map(article => (
+                <ArticleCard 
+                    key={article.id} 
+                    article={article} 
+                    onClick={() => openArticle(article.id)} 
+                />
+                ))
+            )}
+            
+            {!isLoadingFeed && articles.length === 0 && !errorMsg && (
+                 <div className="text-center py-20 text-gray-400">
+                    <p>No articles found.</p>
+                    <button onClick={loadFeed} className="text-indigo-500 underline mt-2">Try refreshing</button>
+                 </div>
+            )}
           </div>
         )}
 
@@ -212,7 +286,7 @@ export default function App() {
 
                 <button 
                     onClick={handleSync}
-                    disabled={syncStatus === 'syncing'}
+                    disabled={syncStatus === 'syncing' || isLoadingFeed}
                     data-testid="sync-button"
                     className={`flex items-center gap-3 px-8 py-3 rounded-full font-semibold shadow-lg transition-all transform active:scale-95
                         ${syncStatus === 'syncing' 
@@ -229,7 +303,7 @@ export default function App() {
                 <div className="w-12 h-12 flex items-center justify-center text-gray-400">
                     {/* Placeholder for balance/alignment */}
                     {syncStatus === 'idle' && (
-                        articles.every(a => a.isDownloaded) 
+                        articles.length > 0 && articles.every(a => a.isDownloaded) 
                         ? <div title="Offline Ready"><WifiOff className="w-5 h-5 text-green-500" /></div>
                         : <div title="Online Content Available"><Wifi className="w-5 h-5 text-amber-500" /></div>
                     )}

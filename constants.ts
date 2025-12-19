@@ -8,11 +8,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   fontFamily: 'serif',
 };
 
-// We use real, stable URLs here so the Proxy has something valid to scrape
-// IDs are prefixed with 'live-' to ensure they don't conflict with previous cached mock data
-export const MOCK_ARTICLES: Article[] = [
+// Fallback data in case Gemini API fails or quota is exceeded
+export const FALLBACK_ARTICLES: Article[] = [
   {
-    id: 'live-1',
+    id: 'fallback-1',
     title: 'History of the World Wide Web',
     url: 'https://en.wikipedia.org/wiki/History_of_the_World_Wide_Web',
     category: 'History',
@@ -21,7 +20,7 @@ export const MOCK_ARTICLES: Article[] = [
     isDownloaded: false,
   },
   {
-    id: 'live-2',
+    id: 'fallback-2',
     title: 'Maker\'s Schedule, Manager\'s Schedule',
     url: 'http://www.paulgraham.com/makersschedule.html',
     category: 'Essay',
@@ -30,7 +29,7 @@ export const MOCK_ARTICLES: Article[] = [
     isDownloaded: false,
   },
   {
-    id: 'live-3',
+    id: 'fallback-3',
     title: 'The Manifesto for Agile Software Development',
     url: 'https://agilemanifesto.org/principles.html',
     category: 'Tech',
