@@ -12,5 +12,9 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3000'
     }
+  },
+  define: {
+    // This allows the frontend to access process.env.API_KEY
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
   }
 });

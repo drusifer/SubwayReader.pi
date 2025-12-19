@@ -1,15 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey = process.env.API_KEY || ''; // Ensure this is set in your build environment
-const ai = new GoogleGenAI({ apiKey });
+// Initialize the client exactly as prescribed in the guidelines
+// The API key is injected via vite.config.ts define
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateSummary = async (markdownContent: string): Promise<string> => {
-  // If no API key is present (e.g. initial simulated run without env), return a placeholder
-  if (!apiKey) {
-    console.warn("No API_KEY found in process.env. Returning mock summary.");
-    return "AI Summary unavailable (Missing API Key)";
-  }
-
   try {
     // Truncate content to avoid token limits if the article is huge
     const truncatedContent = markdownContent.slice(0, 10000); 
@@ -23,6 +18,7 @@ export const generateSummary = async (markdownContent: string): Promise<string> 
       ${truncatedContent}
     `;
 
+    // Use the model directly as requested in guidelines
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,

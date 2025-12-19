@@ -4,6 +4,7 @@ const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const TurndownService = require('turndown');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,7 +15,17 @@ app.use(express.json());
 
 // Serve static files from the React build directory
 // Vite builds to 'dist' by default
-app.use(express.static(path.join(__dirname, 'dist')));
+const DIST_PATH = path.join(__dirname, 'dist');
+const INDEX_PATH = path.join(DIST_PATH, 'index.html');
+
+// Check if build exists
+if (!fs.existsSync(DIST_PATH)) {
+  console.warn('\n⚠️  WARNING: "dist" directory not found.');
+  console.warn('   The server will run, but the UI will not be accessible.');
+  console.warn('   Please run "npm run build" to generate frontend assets.\n');
+}
+
+app.use(express.static(DIST_PATH));
 
 /**
  * API Endpoint: /api/parse
@@ -81,7 +92,17 @@ app.get('/api/parse', async (req, res) => {
 
 // Fallback: Handle client-side routing by serving index.html for unknown routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  if (fs.existsSync(INDEX_PATH)) {
+    res.sendFile(INDEX_PATH);
+  } else {
+    res.status(404).send(`
+      <h1>Frontend Build Not Found</h1>
+      <p>The <code>dist/index.html</code> file is missing.</p>
+      <p>Please run the following command to build the application:</p>
+      <pre>npm run build</pre>
+      <p>Then refresh this page.</p>
+    `);
+  }
 });
 
 app.listen(PORT, () => {
