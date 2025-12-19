@@ -56,9 +56,21 @@ app.get('/api/parse', async (req, res) => {
 
     // 2. Parse HTML with JSDOM
     const doc = new JSDOM(html, { url: targetUrl });
+    const document = doc.window.document;
+
+    // 2b. Aggressive Pre-cleaning (User Story 4.1 Refinement)
+    // Remove common clutter before Readability even sees it
+    const clutterSelectors = [
+      'nav', 'footer', 'header', 'aside', 
+      '.ad', '.advertisement', '.social-share', '.cookie-consent', 
+      '#sidebar', '#comments', '.related-posts'
+    ];
+    clutterSelectors.forEach(selector => {
+      document.querySelectorAll(selector).forEach(el => el.remove());
+    });
     
     // 3. Extract main content with Readability
-    const reader = new Readability(doc.window.document);
+    const reader = new Readability(document);
     const article = reader.parse();
 
     if (!article) {
@@ -71,8 +83,8 @@ app.get('/api/parse', async (req, res) => {
       codeBlockStyle: 'fenced'
     });
     
-    // Remove scripts, styles, and other unwanted elements before converting if Readability missed them
-    turndownService.remove(['script', 'style', 'iframe', 'nav', 'footer']);
+    // Safety net: Remove scripts/styles if they survived Readability
+    turndownService.remove(['script', 'style', 'iframe', 'object', 'video']);
 
     const markdown = turndownService.turndown(article.content);
 

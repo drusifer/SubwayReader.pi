@@ -1,6 +1,7 @@
 import React from 'react';
 import { AppSettings } from '../types';
-import { X, Moon, Sun, Type, Server } from 'lucide-react';
+import { X, Moon, Sun, Type, Server, Trash2 } from 'lucide-react';
+import * as storageService from '../services/storageService';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -14,9 +15,16 @@ export default function SettingsModal({ settings, onUpdate, onClose }: SettingsM
     onUpdate({ ...settings, [key]: value });
   };
 
+  const handleClearCache = () => {
+    if (confirm("Are you sure you want to delete all downloaded articles? This cannot be undone.")) {
+      storageService.clearArticles();
+      window.location.reload(); // Simple refresh to reset state
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
         
         <div className="flex justify-between items-center p-4 border-b border-gray-100 dark:border-gray-700">
           <h2 className="text-lg font-bold dark:text-white">Settings</h2>
@@ -103,6 +111,17 @@ export default function SettingsModal({ settings, onUpdate, onClose }: SettingsM
                     />
                 </div>
             </div>
+          </div>
+
+          {/* Storage Management */}
+          <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+             <button 
+                onClick={handleClearCache}
+                className="w-full flex items-center justify-center gap-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors text-sm font-medium"
+             >
+                <Trash2 className="w-4 h-4" />
+                Clear Offline Data
+             </button>
           </div>
 
         </div>

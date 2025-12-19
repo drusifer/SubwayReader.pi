@@ -230,8 +230,8 @@ export default function App() {
                     {/* Placeholder for balance/alignment */}
                     {syncStatus === 'idle' && (
                         articles.every(a => a.isDownloaded) 
-                        ? <WifiOff className="w-5 h-5 text-green-500" title="Offline Ready" /> 
-                        : <Wifi className="w-5 h-5 text-amber-500" title="Online Content Available" />
+                        ? <div title="Offline Ready"><WifiOff className="w-5 h-5 text-green-500" /></div>
+                        : <div title="Online Content Available"><Wifi className="w-5 h-5 text-amber-500" /></div>
                     )}
                 </div>
             </div>

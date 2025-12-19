@@ -23,6 +23,14 @@ export const loadArticles = (): Article[] => {
   }
 };
 
+export const clearArticles = () => {
+  try {
+    localStorage.removeItem(KEYS.ARTICLES);
+  } catch (e) {
+    console.error("Failed to clear articles", e);
+  }
+};
+
 export const saveSettings = (settings: AppSettings) => {
   try {
     localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
