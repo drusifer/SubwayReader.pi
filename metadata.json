@@ -1,5 +1,0 @@
-{
-  "name": "Subway Reader",
-  "description": "An offline-first PWA for commuters. Sync articles while online, generate AI summaries with Gemini, and read distraction-free markdown content offline.",
-  "requestFramePermissions": []
-}
